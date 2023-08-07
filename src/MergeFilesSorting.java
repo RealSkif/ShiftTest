@@ -4,45 +4,49 @@ import java.util.Arrays;
 import java.util.List;
 
 public class MergeFilesSorting {
-    public static void main(String[] args) {
+    static int BLOCK_SIZE = 10000;
 
-        if (args.length < 3) {
-            System.err.println("Ошибка: Необходимо указать режим сортировки, тип данных и имя выходного файла.");
+    public static void main(String[] args)  {
+        String sortMode = "-a";
+        String dataType;
+        String outputFilePath = "";
+        List<String> inputFiles = new ArrayList<>();
+
+        if (args.length < 2) {
+            System.err.println("Ошибка: Недостаточное количество аргументов. " +
+                    "Необходимо указать тип данных, имя выходного файла и имя файла с исходными данными.");
             return;
         }
 
-        String sortMode = "";
-        String dataType;
-        String outputFilePath;
-        List<String> ins = new ArrayList<>();
-        if (args[1].equals("-a") || args[1].equals("-d")) {
-            sortMode = args[1];
-            dataType = args[0];
+
+        if (args.length >= 3 && (args[0].equals("-a") || args[0].equals("-d"))) {
+            sortMode = args[0];
+            dataType = args[1];
             outputFilePath = args[2];
-            ins.addAll(Arrays.asList(args).subList(3, args.length));
+            inputFiles.addAll(Arrays.asList(args).subList(3, args.length));
+
+
+        } else if ((args.length >= 3 && (args[1].equals("-a") || args[1].equals("-d")))) {
+            dataType = args[0];
+            sortMode = args[1];
+            outputFilePath = args[2];
+            inputFiles.addAll(Arrays.asList(args).subList(3, args.length));
+
         } else {
             dataType = args[0];
-            ins.addAll(Arrays.asList(args).subList(2, args.length));
             outputFilePath = args[1];
+            inputFiles.addAll(Arrays.asList(args).subList(2, args.length));
+
         }
+
 
         try {
             File outputFile = new File(outputFilePath);
             BufferedWriter writer = new BufferedWriter(new FileWriter(outputFile));
 
-            // Открытие входных файлов
-            List<BufferedReader> readers = new ArrayList<>();
-            for (String inputFile : ins) {
-                readers.add(new BufferedReader(new FileReader(inputFile)));
-            }
-
             boolean ascending = sortMode.equals("-a");
-            mergeFiles(readers, writer, dataType, ascending);
+            mergeFiles(inputFiles, writer, dataType, ascending);
 
-            // Закрытие всех файлов
-            for (BufferedReader reader : readers) {
-                reader.close();
-            }
             writer.close();
 
             System.out.println("Слияние и сортировка завершены. Результат в файле: " + outputFilePath);
@@ -53,24 +57,39 @@ public class MergeFilesSorting {
         }
     }
 
-    private static void mergeFiles(List<BufferedReader> readers, BufferedWriter writer,
+    private static void mergeFiles(List<String> inputFiles, BufferedWriter writer,
                                    String dataType, boolean ascending) throws IOException {
-        List<String> elements = new ArrayList<>();
-
-        // Заполняем список элементов из файлов
-        for (BufferedReader reader : readers) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                elements.add(line);
-            }
+        List<String> mergedData = new ArrayList<>();
+        for (String inputFile : inputFiles) {
+            List<String> block = readBlock(new BufferedReader(new FileReader(inputFile)), BLOCK_SIZE);
+            mergedData.addAll(block);
         }
 
-        // Выполняем сортировку слиянием
-        mergeSort(elements, dataType, ascending);
+        mergeSort(mergedData, dataType, ascending);
 
-        // Записываем отсортированные элементы в выходной файл
-        for (String element : elements) {
-            writer.write(element);
+        writeBlock(writer, mergedData);
+    }
+
+    private static List<String> readBlock(BufferedReader reader, int blockSize) throws IOException {
+        List<String> block = new ArrayList<>();
+        String line;
+        int count = 0;
+
+        while ((line = reader.readLine()) != null && count < blockSize) {
+            if (line.isEmpty() || line.equals(" ")) {
+                System.err.println("Среди исходных данных была не валидная строка");
+                line = reader.readLine();
+            }
+            block.add(line);
+            count++;
+        }
+
+        return block;
+    }
+
+    private static void writeBlock(BufferedWriter writer, List<String> block) throws IOException {
+        for (String line : block) {
+            writer.write(line);
             writer.newLine();
         }
     }
@@ -94,14 +113,11 @@ public class MergeFilesSorting {
         int i = 0, j = 0, k = 0;
 
         while (i < left.size() && j < right.size()) {
-            String leftElement = left.get(i);
-            String rightElement = right.get(j);
-
-            if (shouldSwap(leftElement, rightElement, dataType, ascending)) {
-                result.set(k, leftElement);
+            if (shouldSwap(left.get(i), right.get(j), dataType, ascending)) {
+                result.set(k, left.get(i));
                 i++;
             } else {
-                result.set(k, rightElement);
+                result.set(k, right.get(j));
                 j++;
             }
             k++;
@@ -121,8 +137,8 @@ public class MergeFilesSorting {
     }
 
     private static boolean shouldSwap(String a, String b, String dataType, boolean ascending) {
-        int cmp = dataType.equals("-i") ? Integer.compare(Integer.parseInt(a), Integer.parseInt(b))
+        int res = dataType.equals("-i") ? Integer.compare(Integer.parseInt(a), Integer.parseInt(b))
                 : a.compareTo(b);
-        return ascending ? cmp > 0 : cmp < 0;
+        return ascending ? res < 0 : res > 0;
     }
 }
