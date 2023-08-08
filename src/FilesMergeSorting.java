@@ -3,10 +3,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-public class MergeFilesSorting {
+public class FilesMergeSorting {
     static int BLOCK_SIZE = 10000;
 
-    public static void main(String[] args)  {
+    public static void main(String[] args) {
         String sortMode = "-a";
         String dataType;
         String outputFilePath = "";
@@ -39,7 +39,6 @@ public class MergeFilesSorting {
 
         }
 
-
         try {
             File outputFile = new File(outputFilePath);
             BufferedWriter writer = new BufferedWriter(new FileWriter(outputFile));
@@ -60,24 +59,50 @@ public class MergeFilesSorting {
     private static void mergeFiles(List<String> inputFiles, BufferedWriter writer,
                                    String dataType, boolean ascending) throws IOException {
         List<String> mergedData = new ArrayList<>();
+        List<BufferedReader> readers = new ArrayList<>();
         for (String inputFile : inputFiles) {
-            List<String> block = readBlock(new BufferedReader(new FileReader(inputFile)), BLOCK_SIZE);
-            mergedData.addAll(block);
+            readers.add(new BufferedReader(new FileReader(inputFile)));
         }
 
-        mergeSort(mergedData, dataType, ascending);
-
-        writeBlock(writer, mergedData);
+        boolean dataAvailable = true;
+        while (dataAvailable) {
+            dataAvailable = false;
+            for (BufferedReader reader : readers) {
+                List<String> block = readBlock(reader, BLOCK_SIZE, dataType);
+                if (!block.isEmpty()) {
+                    dataAvailable = true;
+                    mergedData.addAll(block);
+                }
+            }
+            if (dataAvailable) {
+                mergeSort(mergedData, dataType, ascending);
+                writeBlock(writer, mergedData);
+                mergedData.clear();
+            }
+        }
+        for (BufferedReader reader : readers) {
+            reader.close();
+        }
     }
 
-    private static List<String> readBlock(BufferedReader reader, int blockSize) throws IOException {
+    private static List<String> readBlock(BufferedReader reader, int blockSize,
+                                          String dataType) throws IOException {
         List<String> block = new ArrayList<>();
         String line;
         int count = 0;
-
         while ((line = reader.readLine()) != null && count < blockSize) {
             if (line.isEmpty() || line.equals(" ")) {
-                System.err.println("Среди исходных данных была не валидная строка");
+                System.err.println("Среди исходных данных была некорректная строка");
+                line = reader.readLine();
+            }
+            if (dataType.equals("-i") && !(line.matches("-?\\d+"))) {
+                System.err.println("Несоответствие типа данных из аргументов программы и исходных данных. " + count
+                        + " строка пропущена." );
+                line = reader.readLine();
+            }
+            if (dataType.equals("-s") && !(line.matches(" "))) {
+                System.err.println("Пробел в строке " + count
+                        + " . Строка пропущена как содержащая некорректные данные.");
                 line = reader.readLine();
             }
             block.add(line);
